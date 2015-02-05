@@ -174,7 +174,7 @@ hostapd_set_bss_options() {
 		wps_pushbutton wps_label ext_registrar wps_pbc_in_m1 \
 		wps_device_type wps_device_name wps_manufacturer wps_pin \
 		macfilter ssid wmm uapsd hidden short_preamble rsn_preauth \
-		iapp_interface
+		iapp_interface dae_client dae_secret dae_port
 
 	set_default isolate 0
 	set_default maxassoc 0
@@ -184,6 +184,7 @@ hostapd_set_bss_options() {
 	set_default hidden 0
 	set_default wmm 1
 	set_default uapsd 1
+	set_default dae_port 3799
 
 	append bss_conf "ctrl_interface=/var/run/hostapd"
 	if [ "$isolate" -gt 0 ]; then
@@ -201,6 +202,11 @@ hostapd_set_bss_options() {
 	append bss_conf "wmm_enabled=$wmm" "$N"
 	append bss_conf "ignore_broadcast_ssid=$hidden" "$N"
 	append bss_conf "uapsd_advertisement_enabled=$uapsd" "$N"
+
+	[ -n "$dae_client" -a -n "$dae_secret" ] && {
+		append bss_conf "radius_das_port=$dae_port" "$N"
+		append bss_conf "radius_das_client=$dae_client $dae_secret" "$N"
+	}
 
 	[ "$wpa" -gt 0 ] && {
 		[ -n "$wpa_group_rekey"  ] && append bss_conf "wpa_group_rekey=$wpa_group_rekey" "$N"
@@ -235,7 +241,6 @@ hostapd_set_bss_options() {
 			json_get_vars \
 				auth_server auth_secret auth_port \
 				acct_server acct_secret acct_port \
-				dae_client dae_secret dae_port \
 				nasid ownip \
 				eap_reauth_period dynamic_vlan \
 				vlan_naming vlan_tagged_interface \
@@ -248,7 +253,6 @@ hostapd_set_bss_options() {
 
 			set_default auth_port 1812
 			set_default acct_port 1813
-			set_default dae_port 3799
 
 			set_default vlan_naming 1
 
@@ -264,11 +268,6 @@ hostapd_set_bss_options() {
 			}
 
 			[ -n "$eap_reauth_period" ] && append bss_conf "eap_reauth_period=$eap_reauth_period" "$N"
-
-			[ -n "$dae_client" -a -n "$dae_secret" ] && {
-				append bss_conf "radius_das_port=$dae_port" "$N"
-				append bss_conf "radius_das_client=$dae_client $dae_secret" "$N"
-			}
 
 			append bss_conf "nas_identifier=$nasid" "$N"
 			[ -n "$ownip" ] && append bss_conf "own_ip_addr=$ownip" "$N"
@@ -373,6 +372,31 @@ hostapd_set_bss_options() {
 		deny)
 			append bss_conf "macaddr_acl=0" "$N"
 			append bss_conf "deny_mac_file=$_macfile" "$N"
+		;;
+		radius)
+			append bss_conf "macaddr_acl=2" "$N"
+			json_get_vars auth_server auth_port auth_secret \
+				acct_server acct_port acct_secret \
+				dynamic_vlan vlan_naming vlan_tagged_interface
+
+			set_default auth_port 1812
+			set_default acct_port 1813
+			set_default vlan_naming 1
+			[ -n "$auth_server" ] && append bss_conf "auth_server_addr=$auth_server" "$N"
+			[ -n "$auth_port" ] && append bss_conf "auth_server_port=$auth_port" "$N"
+			[ -n "$auth_secret" ] && append bss_conf "auth_server_shared_secret=$auth_secret" "$N"
+			[ -n "$acct_server" ] && {
+				append bss_conf "acct_server_addr=$acct_server" "$N"
+				append bss_conf "acct_server_port=$acct_port" "$N"
+				[ -n "$acct_secret" ] && \
+					append bss_conf "acct_server_shared_secret=$acct_secret" "$N"
+			}
+			[ -n "$dynamic_vlan" ] && {
+				append bss_conf "dynamic_vlan=$dynamic_vlan" "$N"
+				append bss_conf "vlan_naming=$vlan_naming" "$N"
+				[ -n "$vlan_tagged_interface" ] && \
+					append bss_conf "vlan_tagged_interface=$vlan_tagged_interface" "$N"
+			}
 		;;
 		*)
 			_macfile=""
